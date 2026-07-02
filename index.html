@@ -171,7 +171,7 @@
     </div>
     <div class="header-actions">
       <label class="my-toggle"><input type="checkbox" id="my-accounts-toggle"> My accounts only</label>
-      <button class="rep-badge" id="rep-badge" onclick="openRepPicker()">Set your name</button>
+      <button class="rep-badge" id="rep-badge" title="Click to sign out">Signed out</button>
       <button class="reset-btn" id="seed-btn" onclick="seedStarterAccounts()">Load starter accounts</button>
     </div>
   </div>
@@ -365,6 +365,18 @@
       <div id="groq-key-status" style="font-size:12.5px;margin-bottom:10px;"></div>
       <button class="reset-btn" onclick="changeGroqKey().then(()=>{renderSettings();})">Set / change Groq key</button>
     </div>
+
+    <div class="panel">
+      <h2>Team access</h2>
+      <div class="desc">Only these emails can sign in and read/write data. Add a teammate to give them access.</div>
+      <table class="settings-table" id="reps-table"></table>
+      <div class="add-row">
+        <input type="text" id="invite-name" placeholder="Name">
+        <input type="text" id="invite-email" placeholder="email@company.com">
+        <button onclick="inviteTeammate()">Add</button>
+      </div>
+      <div id="invite-status" style="margin-top:8px;font-size:12px;"></div>
+    </div>
   </div>
 
 </main>
@@ -374,15 +386,7 @@
 </div>
 
 <div class="modal-overlay" id="rep-modal">
-  <div class="modal-box">
-    <h3>Who's using this?</h3>
-    <div class="mdesc">No passwords — just so accounts you touch are attributed to you.</div>
-    <div id="rep-list"></div>
-    <div class="add-row">
-      <input type="text" id="rep-new-name" placeholder="Add yourself…" onkeydown="if(event.key==='Enter')addNewRep()">
-      <button onclick="addNewRep()">Add</button>
-    </div>
-  </div>
+  <div class="modal-box"><!-- populated by showSignInGate() / showNotAllowedScreen() --></div>
 </div>
 
 <div class="modal-overlay" id="import-modal">
@@ -1007,44 +1011,78 @@ async function confirmImport(){
 }
 
 /* =========================================================================
-   IDENTITY — no passwords, just an attribution picker per device.
+   IDENTITY — real Supabase Auth (email magic-link). Data access is gated
+   by RLS checking the authenticated email against the `reps` allow-list
+   (see migration_auth.sql) — signing in alone isn't enough to read/write.
    ========================================================================= */
-function openRepPicker(){
-  const list = document.getElementById('rep-list');
-  list.innerHTML = DATA.reps.map(r=>`<button class="rep-chip" onclick="selectRep('${r.id}')">${r.name}</button>`).join('')
-    || '<div style="color:var(--muted);font-size:12px;">No reps yet — add yourself below.</div>';
+function showModalBox(html){
+  document.querySelector('#rep-modal .modal-box').innerHTML = html;
   document.getElementById('rep-modal').classList.add('active');
 }
-function closeRepPicker(){ document.getElementById('rep-modal').classList.remove('active'); }
+function hideAuthGate(){ document.getElementById('rep-modal').classList.remove('active'); }
+
+function showSignInGate(){
+  showModalBox(`
+    <h3>Sign in</h3>
+    <div class="mdesc">Enter your email — we'll send a one-time login link. Only allow-listed team emails can read or write data.</div>
+    <input type="text" id="signin-email" placeholder="you@company.com" onkeydown="if(event.key==='Enter')sendMagicLink()">
+    <div class="add-row"><button onclick="sendMagicLink()">Send login link</button></div>
+    <div id="signin-status" style="margin-top:10px;font-size:12px;color:var(--muted);"></div>
+  `);
+}
+async function sendMagicLink(){
+  const email = document.getElementById('signin-email').value.trim();
+  const statusEl = document.getElementById('signin-status');
+  if (!email){ statusEl.textContent = 'Enter an email first.'; return; }
+  statusEl.textContent = 'Sending…';
+  const {error} = await sb.auth.signInWithOtp({email, options:{emailRedirectTo: window.location.href}});
+  if (error){ statusEl.innerHTML = `<span style="color:var(--red);">${error.message}</span>`; return; }
+  statusEl.innerHTML = `<strong>Check your email</strong> — click the link sent to ${email}. This tab picks it up automatically once you do.`;
+}
+function showNotAllowedScreen(email){
+  showModalBox(`
+    <h3>Not on the team list</h3>
+    <div class="mdesc">Signed in as <strong>${email}</strong>, but this email hasn't been added as a rep yet. Ask a teammate to add you from Settings → Invite teammate, then sign in again.</div>
+    <div class="add-row"><button onclick="signOut()" style="background:var(--bg);color:var(--text);border:1px solid var(--border);">Sign out</button></div>
+  `);
+}
+async function signOut(){ await sb.auth.signOut(); }
 function updateRepBadge(){
-  document.getElementById('rep-badge').textContent = CURRENT_REP ? CURRENT_REP.name : 'Set your name';
+  const btn = document.getElementById('rep-badge');
+  btn.textContent = CURRENT_REP ? CURRENT_REP.name : 'Signed out';
+  btn.onclick = CURRENT_REP ? signOut : null;
 }
-function selectRep(repId){
-  const rep = DATA.reps.find(r=>r.id===repId);
-  if (!rep) return;
-  CURRENT_REP = rep;
-  localStorage.setItem('gtm_crm_rep_id', rep.id);
-  updateRepBadge();
-  closeRepPicker();
-  renderAll();
-}
-async function addNewRep(){
-  const input = document.getElementById('rep-new-name');
-  const name = input.value.trim();
-  if (!name) return;
-  const existing = DATA.reps.find(r=>r.name.toLowerCase()===name.toLowerCase());
-  if (existing){ selectRep(existing.id); return; }
-  const {data, error} = await sb.from('reps').insert({name}).select().single();
-  if (error){ showBanner('Failed to add rep: '+error.message, true); return; }
+async function inviteTeammate(){
+  const nameInput = document.getElementById('invite-name');
+  const emailInput = document.getElementById('invite-email');
+  const statusEl = document.getElementById('invite-status');
+  const name = nameInput.value.trim(), email = emailInput.value.trim();
+  if (!name || !email){ statusEl.textContent = 'Name and email are both required.'; return; }
+  const {data, error} = await sb.from('reps').insert({name, email}).select().single();
+  if (error){ statusEl.innerHTML = `<span style="color:var(--red);">${error.message}</span>`; return; }
   DATA.reps.push(data);
-  input.value = '';
-  selectRep(data.id);
+  nameInput.value = ''; emailInput.value = '';
+  statusEl.innerHTML = `<span style="color:var(--green);">Added — ${name} can now sign in with ${email}.</span>`;
+  renderAccounts();
 }
-function ensureRep(){
-  const savedId = localStorage.getItem('gtm_crm_rep_id');
-  const rep = savedId ? DATA.reps.find(r=>r.id===savedId) : null;
-  if (rep){ CURRENT_REP = rep; updateRepBadge(); }
-  else { openRepPicker(); }
+
+async function onAuthenticated(session){
+  hideAuthGate();
+  await loadAllData();
+  const email = (session.user.email || '').toLowerCase();
+  const rep = DATA.reps.find(r=>(r.email||'').toLowerCase()===email);
+  if (!rep){ showNotAllowedScreen(session.user.email); CURRENT_REP = null; return; }
+  CURRENT_REP = rep;
+  updateRepBadge();
+  renderAll();
+  renderSettings();
+  setupRealtime();
+}
+function setupAuthListener(){
+  sb.auth.onAuthStateChange(async (event, session)=>{
+    if (event==='SIGNED_IN' && session){ await onAuthenticated(session); }
+    else if (event==='SIGNED_OUT'){ CURRENT_REP = null; updateRepBadge(); showSignInGate(); }
+  });
 }
 
 /* =========================================================================
@@ -1330,6 +1368,11 @@ function renderSequences(){
    SETTINGS — editable ICP weights and sequence templates.
    ========================================================================= */
 function renderSettings(){
+  const repsTable = document.getElementById('reps-table');
+  if (repsTable){
+    repsTable.innerHTML = `<tr><th>Name</th><th>Email</th></tr>` +
+      DATA.reps.map(r=>`<tr><td>${r.name}${CURRENT_REP && r.id===CURRENT_REP.id?' (you)':''}</td><td>${r.email||'—'}</td></tr>`).join('');
+  }
   const groqStatusEl = document.getElementById('groq-key-status');
   if (groqStatusEl){
     groqStatusEl.innerHTML = GROQ_API_KEY
@@ -1570,13 +1613,13 @@ document.querySelectorAll('#contact-table th[data-sort]').forEach(th=>{
 
 (async function init(){
   try{
-    await loadAllData();
-    ensureRep();
-    renderAll();
-    renderSettings();
-    setupRealtime();
+    setupAuthListener();
+    const {data:{session}} = await sb.auth.getSession();
+    if (session){ await onAuthenticated(session); }
+    else { showSignInGate(); }
   } catch(e){
     console.error(e);
+    showBanner('Failed to initialize: '+e.message, true);
   }
 })();
 </script>
