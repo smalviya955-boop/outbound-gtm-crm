@@ -1,0 +1,1584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Outbound GTM Command Center</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#f5f6f8; --panel:#ffffff; --border:#e3e6ea; --text:#1a1d24; --muted:#6b7280;
+    --accent:#4f46e5; --accent-light:#eef0fd; --green:#0f9d58; --green-light:#e7f6ec;
+    --red:#d93025; --red-light:#fdecea; --amber:#b7791f; --amber-light:#fdf3e0;
+    --blue:#1a73e8; --blue-light:#e8f0fe; --purple:#7c3aed; --purple-light:#f1eafe;
+    --radius:10px; --shadow:0 1px 2px rgba(0,0,0,.04), 0 1px 6px rgba(0,0,0,.04);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
+  header{background:var(--panel);border-bottom:1px solid var(--border);padding:18px 28px;position:sticky;top:0;z-index:20;}
+  .header-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+  h1{font-size:19px;margin:0;font-weight:700;}
+  .subtitle{font-size:12.5px;color:var(--muted);margin-top:3px;}
+  .header-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .rep-badge{font-size:12.5px;font-weight:700;background:var(--accent-light);color:var(--accent);border:none;border-radius:20px;padding:6px 14px;cursor:pointer;}
+  .my-toggle{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:600;}
+  nav{display:flex;gap:4px;margin-top:14px;}
+  nav button{background:none;border:none;padding:9px 16px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;border-radius:8px;}
+  nav button:hover{background:var(--bg);}
+  nav button.active{background:var(--accent);color:#fff;}
+  main{padding:24px 28px 60px;max-width:1400px;margin:0 auto;}
+  .tab{display:none;}
+  .tab.active{display:block;}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:22px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);}
+  .card .num{font-size:24px;font-weight:800;}
+  .card .label{font-size:12px;color:var(--muted);margin-top:4px;}
+  .card .sub{font-size:11px;color:var(--green);margin-top:6px;font-weight:600;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin-bottom:20px;}
+  .panel h2{font-size:15px;margin:0 0 4px;}
+  .panel .desc{font-size:12px;color:var(--muted);margin-bottom:16px;}
+  .funnel-row{display:flex;align-items:center;gap:12px;margin-bottom:10px;}
+  .funnel-label{width:190px;font-size:12.5px;font-weight:600;flex-shrink:0;}
+  .funnel-bar-wrap{flex:1;background:var(--bg);border-radius:6px;height:28px;position:relative;overflow:hidden;}
+  .funnel-bar{height:100%;background:linear-gradient(90deg,var(--accent),#7c72f0);border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;color:#fff;font-size:11.5px;font-weight:700;white-space:nowrap;}
+  .funnel-conv{width:70px;font-size:11px;color:var(--muted);text-align:right;flex-shrink:0;}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media (max-width:900px){.two-col{grid-template-columns:1fr;}}
+  .persona-bar-group{margin-bottom:14px;}
+  .persona-bar-group .pname{font-size:12.5px;font-weight:700;margin-bottom:6px;}
+  .pbar-row{display:flex;align-items:center;gap:8px;font-size:11.5px;margin-bottom:4px;}
+  .pbar-row .plabel{width:80px;color:var(--muted);flex-shrink:0;}
+  .pbar-track{flex:1;background:var(--bg);border-radius:5px;height:14px;overflow:hidden;}
+  .pbar-fill{height:100%;border-radius:5px;}
+  .pbar-val{width:70px;text-align:right;font-weight:600;flex-shrink:0;}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
+  .toolbar input[type=text]{padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;min-width:220px;background:var(--bg);}
+  .toolbar select{padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);}
+  .toolbar .spacer{flex:1;}
+  .toolbar .count{font-size:12px;color:var(--muted);}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;padding:9px 10px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap;}
+  th:hover{color:var(--text);}
+  td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  tbody tr:hover{background:var(--accent-light);cursor:pointer;}
+  .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;}
+  .badge.qualified{background:var(--green-light);color:var(--green);}
+  .badge.cut{background:var(--red-light);color:var(--red);}
+  .badge.cfo{background:var(--blue-light);color:var(--blue);}
+  .badge.sales{background:#fdeee0;color:#c2650a;}
+  .badge.status-notstarted{background:#eef0f2;color:var(--muted);}
+  .badge.status-touch{background:var(--accent-light);color:var(--accent);}
+  .badge.status-replied{background:var(--green-light);color:var(--green);}
+  .badge.status-meeting{background:#e0f7ec;color:#0b8a52;font-weight:800;}
+  .badge.status-held{background:var(--purple-light);color:var(--purple);}
+  .badge.status-proposal{background:#e0eefe;color:#0b5fa8;}
+  .badge.status-won{background:#dcfce7;color:#15803d;font-weight:800;}
+  .badge.status-lost{background:var(--red-light);color:var(--red);}
+  .badge.status-unqualified{background:var(--red-light);color:var(--red);}
+  .badge.overdue{background:var(--red-light);color:var(--red);}
+  .badge.due-today{background:var(--amber-light);color:var(--amber);}
+  .score-pill{font-weight:800;padding:2px 8px;border-radius:6px;font-size:12px;}
+  .score-high{background:var(--green-light);color:var(--green);}
+  .score-mid{background:var(--amber-light);color:var(--amber);}
+  .score-low{background:var(--red-light);color:var(--red);}
+  .seq-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);}
+  .seq-card h3{margin:0 0 2px;font-size:14px;}
+  .seq-card .seq-desc{font-size:11.5px;color:var(--muted);margin-bottom:14px;}
+  .touch-step{display:flex;gap:10px;padding:10px 0;border-top:1px dashed var(--border);}
+  .touch-step:first-child{border-top:none;}
+  .touch-day{width:56px;flex-shrink:0;font-size:11px;font-weight:700;color:var(--accent);}
+  .touch-body .ch{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;font-weight:700;}
+  .touch-body .subj{font-size:12.5px;margin-top:2px;}
+  .kanban{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:18px;}
+  .kanban-col{background:var(--bg);border-radius:8px;padding:10px;min-height:60px;}
+  .kanban-col h4{font-size:11px;margin:0 0 8px;color:var(--muted);display:flex;justify-content:space-between;}
+  .kanban-col h4 .n{background:var(--panel);border-radius:10px;padding:1px 7px;font-weight:700;color:var(--text);}
+  .kchip{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:11px;margin-bottom:6px;cursor:pointer;}
+  .kchip:hover{border-color:var(--accent);}
+  .kchip .kname{font-weight:700;}
+  .kchip .kco{color:var(--muted);font-size:10.5px;}
+  .overlay{position:fixed;inset:0;background:rgba(20,20,30,.35);display:none;align-items:flex-start;justify-content:flex-end;z-index:50;}
+  .overlay.active{display:flex;}
+  .drawer{background:var(--panel);width:440px;max-width:92vw;height:100%;overflow-y:auto;padding:24px;box-shadow:-6px 0 20px rgba(0,0,0,.12);}
+  .drawer-close{float:right;background:var(--bg);border:none;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;}
+  .drawer h2{font-size:17px;margin:2px 0 2px;}
+  .drawer .co{font-size:12.5px;color:var(--muted);margin-bottom:14px;}
+  .drawer .field-row{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;padding:7px 0;border-bottom:1px solid var(--border);gap:10px;}
+  .drawer .field-row span:first-child{color:var(--muted);flex-shrink:0;}
+  .drawer select{font-size:12px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg);}
+  .timeline{margin-top:16px;}
+  .timeline .tstep{display:flex;gap:10px;padding:9px 0;border-top:1px dashed var(--border);font-size:12px;}
+  .timeline .tstep:first-child{border-top:none;}
+  .tdate{width:74px;flex-shrink:0;color:var(--muted);font-size:11px;}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;}
+  .actions button{flex:1;min-width:120px;padding:9px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);font-size:12px;font-weight:700;cursor:pointer;}
+  .actions button:hover{border-color:var(--accent);color:var(--accent);}
+  .actions button.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .actions button.primary:hover{opacity:.9;color:#fff;}
+  .actions button:disabled{opacity:.4;cursor:not-allowed;}
+  .footer-note{font-size:11px;color:var(--muted);text-align:center;margin-top:30px;}
+  .reset-btn{font-size:11.5px;background:none;border:1px solid var(--border);border-radius:7px;padding:6px 12px;cursor:pointer;color:var(--muted);}
+  .reset-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .expand-row td{background:var(--bg);padding:0;}
+  .contact-mini{display:flex;justify-content:space-between;align-items:center;padding:8px 16px;font-size:12px;border-bottom:1px solid var(--border);}
+  .contact-mini:last-child{border-bottom:none;}
+  .notes-input{width:100%;min-height:70px;font-family:inherit;font-size:12.5px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);resize:vertical;margin-top:8px;}
+  .notes-save{font-size:11px;color:var(--muted);margin-top:4px;}
+  .activity-feed{margin-top:14px;}
+  .activity-item{display:flex;gap:8px;padding:7px 0;border-top:1px dashed var(--border);font-size:11.5px;}
+  .activity-item:first-child{border-top:none;}
+  .activity-item .adate{width:70px;flex-shrink:0;color:var(--muted);}
+  .activity-item .arep{font-weight:700;}
+  .due-list{margin-top:6px;}
+  .due-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px dashed var(--border);font-size:12px;}
+  .due-item:first-child{border-top:none;}
+  .due-item button{font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg);cursor:pointer;font-weight:700;}
+  .due-item button:hover{border-color:var(--accent);color:var(--accent);}
+  .owner-select{font-size:11px;padding:3px 5px;border-radius:6px;border:1px solid var(--border);background:var(--bg);max-width:120px;}
+  .modal-overlay{position:fixed;inset:0;background:rgba(20,20,30,.5);display:none;align-items:center;justify-content:center;z-index:100;}
+  .modal-overlay.active{display:flex;}
+  .modal-box{background:var(--panel);border-radius:var(--radius);padding:26px;width:340px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.2);}
+  .modal-box h3{margin:0 0 4px;font-size:16px;}
+  .modal-box .mdesc{font-size:12px;color:var(--muted);margin-bottom:16px;}
+  .rep-chip{display:block;width:100%;text-align:left;padding:9px 12px;margin-bottom:6px;border-radius:8px;border:1px solid var(--border);background:var(--bg);cursor:pointer;font-size:13px;font-weight:600;}
+  .rep-chip:hover{border-color:var(--accent);color:var(--accent);}
+  .modal-box input[type=text]{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;margin-top:10px;background:var(--bg);}
+  .modal-box .add-row{display:flex;gap:8px;margin-top:6px;}
+  .modal-box .add-row button{padding:9px 14px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-weight:700;cursor:pointer;font-size:12.5px;}
+  .banner{background:var(--amber-light);color:var(--amber);border-radius:8px;padding:10px 14px;font-size:12.5px;font-weight:600;margin-bottom:16px;}
+  .banner.error{background:var(--red-light);color:var(--red);}
+  .settings-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:10px;}
+  .settings-table th{text-align:left;padding:6px 8px;color:var(--muted);font-weight:600;font-size:11px;}
+  .settings-table td{padding:5px 8px;}
+  .settings-table input[type=text], .settings-table input[type=number]{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12.5px;background:var(--bg);}
+  .settings-table input[type=number]{max-width:80px;}
+  .weights-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;}
+  .weights-field label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600;}
+  .weights-field input{width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:var(--bg);}
+  .save-btn{padding:9px 16px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-weight:700;cursor:pointer;font-size:12.5px;}
+  .save-btn:hover{opacity:.9;}
+  .save-btn:disabled{opacity:.5;cursor:not-allowed;}
+  .save-status{font-size:11.5px;color:var(--green);margin-left:10px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-row">
+    <div>
+      <h1>Outbound GTM Command Center</h1>
+      <div class="subtitle">GST-sourced → ICP-scored → enriched → sequenced outbound pipeline, built for a working-capital fintech</div>
+    </div>
+    <div class="header-actions">
+      <label class="my-toggle"><input type="checkbox" id="my-accounts-toggle"> My accounts only</label>
+      <button class="rep-badge" id="rep-badge" onclick="openRepPicker()">Set your name</button>
+      <button class="reset-btn" id="seed-btn" onclick="seedStarterAccounts()">Load starter accounts</button>
+    </div>
+  </div>
+  <nav>
+    <button data-tab="dashboard" class="active">Dashboard</button>
+    <button data-tab="accounts">Accounts</button>
+    <button data-tab="contacts">Contacts</button>
+    <button data-tab="sequences">Sequences</button>
+    <button data-tab="settings">Settings</button>
+  </nav>
+</header>
+
+<main>
+  <div id="status-banner"></div>
+
+  <!-- DASHBOARD -->
+  <div class="tab active" id="tab-dashboard">
+    <div class="cards" id="dashboard-cards"></div>
+
+    <div class="panel">
+      <h2>Pipeline funnel</h2>
+      <div class="desc">Live counts from the shared database.</div>
+      <div id="funnel-container"></div>
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <h2>Due today &amp; overdue</h2>
+        <div class="desc">Next scheduled touch, computed from each contact's sequence position.</div>
+        <div id="due-list" class="due-list"></div>
+      </div>
+      <div class="panel">
+        <h2>Deal outcomes</h2>
+        <div class="desc">What happens after the meeting.</div>
+        <div id="outcome-stats"></div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <h2>Reply &amp; meeting rate by persona</h2>
+        <div class="desc">Same product, two languages — CFOs hear cash flow, Heads of Sales hear pipeline speed.</div>
+        <div id="persona-stats"></div>
+      </div>
+      <div class="panel">
+        <h2>ICP score distribution</h2>
+        <div class="desc">Revenue fit + industry fit + multi-state GST complexity, out of 100.</div>
+        <div id="score-dist"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACCOUNTS -->
+  <div class="tab" id="tab-accounts">
+    <div class="panel">
+      <h2>Accounts — ICP scoring</h2>
+      <div class="desc">Click a row to see its contacts. Assign an owner from the dropdown on the right.</div>
+      <div class="toolbar">
+        <button class="save-btn" onclick="openImportModal()">Import CSV</button>
+        <input type="text" id="acct-search" placeholder="Search company or industry…">
+        <select id="acct-status-filter">
+          <option value="all">All statuses</option>
+          <option value="Qualified">Qualified</option>
+          <option value="Cut">Cut</option>
+        </select>
+        <select id="acct-industry-filter"><option value="all">All industries</option></select>
+        <div class="spacer"></div>
+        <span class="count" id="acct-count"></span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table id="acct-table">
+          <thead>
+            <tr>
+              <th data-sort="name">Company</th>
+              <th data-sort="industry">Industry</th>
+              <th data-sort="state">State</th>
+              <th data-sort="revenueCr">Revenue (₹Cr)</th>
+              <th data-sort="icpScore">ICP score</th>
+              <th data-sort="status">Status</th>
+              <th>Owner</th>
+            </tr>
+          </thead>
+          <tbody id="acct-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTACTS -->
+  <div class="tab" id="tab-contacts">
+    <div class="panel">
+      <h2>Contacts — system of record</h2>
+      <div class="desc">Two personas per qualified account: the CFO (feels the pain) and the Head of Sales (signs the cheque). Click a contact to log a touch, add notes, or move the deal stage.</div>
+      <div class="toolbar">
+        <input type="text" id="contact-search" placeholder="Search contact or company…">
+        <select id="contact-persona-filter">
+          <option value="all">All personas</option>
+          <option value="CFO">CFO</option>
+          <option value="Head of Sales">Head of Sales</option>
+        </select>
+        <select id="contact-status-filter">
+          <option value="all">All statuses</option>
+          <option value="Not Started">Not Started</option>
+          <option value="In Sequence">In Sequence</option>
+          <option value="Replied">Replied</option>
+          <option value="Meeting Booked">Meeting Booked</option>
+          <option value="Meeting Held">Meeting Held</option>
+          <option value="Proposal">Proposal</option>
+          <option value="Closed Won">Closed Won</option>
+          <option value="Closed Lost">Closed Lost</option>
+          <option value="Unqualified">Unqualified</option>
+        </select>
+        <div class="spacer"></div>
+        <span class="count" id="contact-count"></span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table id="contact-table">
+          <thead>
+            <tr>
+              <th data-sort="name">Contact</th>
+              <th data-sort="persona">Persona</th>
+              <th data-sort="companyName">Account</th>
+              <th data-sort="touchCount">Touch</th>
+              <th data-sort="lastTouchDate">Last touch</th>
+              <th data-sort="statusLabel">Status</th>
+            </tr>
+          </thead>
+          <tbody id="contact-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEQUENCES -->
+  <div class="tab" id="tab-sequences">
+    <div class="panel">
+      <h2>4-touch / 14-day sequence, split by persona</h2>
+      <div class="desc">Follow-ups trigger on schedule. Replies log automatically. Judgment calls stay human.</div>
+      <div class="two-col">
+        <div class="seq-card">
+          <h3>CFO track</h3>
+          <div class="seq-desc">Angle: cash flow &amp; risk</div>
+          <div id="seq-cfo"></div>
+        </div>
+        <div class="seq-card">
+          <h3>Head of Sales track</h3>
+          <div class="seq-desc">Angle: pipeline speed</div>
+          <div id="seq-sales"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Live sequence board</h2>
+      <div class="desc">Every enriched contact, where they are right now. Click a chip to open the contact.</div>
+      <div class="kanban" id="kanban"></div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="tab" id="tab-settings">
+    <div class="panel">
+      <h2>ICP scoring model</h2>
+      <div class="desc">Tune the weights and qualify bar. Saving re-scores every account in the shared database immediately.</div>
+      <div class="weights-grid" id="weights-fields"></div>
+      <table class="settings-table" id="industry-weights-table"></table>
+      <button class="save-btn" onclick="saveIcpWeights()">Save &amp; re-score all accounts</button>
+      <span class="save-status" id="weights-save-status"></span>
+    </div>
+
+    <div class="panel">
+      <h2>Sequence templates</h2>
+      <div class="desc">Edit the day offset, channel, and subject line for each touch. Changes apply to every future "Log next touch" click.</div>
+      <div class="two-col">
+        <div>
+          <h3 style="font-size:13px;">CFO track</h3>
+          <table class="settings-table" id="template-table-cfo"></table>
+        </div>
+        <div>
+          <h3 style="font-size:13px;">Head of Sales track</h3>
+          <table class="settings-table" id="template-table-sales"></table>
+        </div>
+      </div>
+      <button class="save-btn" onclick="saveSequenceTemplates()">Save templates</button>
+      <span class="save-status" id="templates-save-status"></span>
+    </div>
+
+    <div class="panel">
+      <h2>AI features (Groq)</h2>
+      <div class="desc">Powers CSV column mapping and "Suggest next step." Your key is stored only in this browser.</div>
+      <div id="groq-key-status" style="font-size:12.5px;margin-bottom:10px;"></div>
+      <button class="reset-btn" onclick="changeGroqKey().then(()=>{renderSettings();})">Set / change Groq key</button>
+    </div>
+  </div>
+
+</main>
+
+<div class="overlay" id="overlay">
+  <div class="drawer" id="drawer"></div>
+</div>
+
+<div class="modal-overlay" id="rep-modal">
+  <div class="modal-box">
+    <h3>Who's using this?</h3>
+    <div class="mdesc">No passwords — just so accounts you touch are attributed to you.</div>
+    <div id="rep-list"></div>
+    <div class="add-row">
+      <input type="text" id="rep-new-name" placeholder="Add yourself…" onkeydown="if(event.key==='Enter')addNewRep()">
+      <button onclick="addNewRep()">Add</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="import-modal">
+  <div class="modal-box" style="width:660px;max-width:94vw;">
+    <button class="drawer-close" style="float:right;" onclick="closeImportModal()">✕</button>
+    <h3>Import companies from CSV</h3>
+    <div class="mdesc">Upload a GST or Clay export. Groq maps messy column names to our schema and normalizes industry labels — nothing is written to the database until you confirm.</div>
+    <div id="import-body"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="groq-key-modal">
+  <div class="modal-box">
+    <h3>Enable AI features</h3>
+    <div class="mdesc">CSV column mapping and "Suggest next step" use Groq. Paste a free key from <strong>console.groq.com → API Keys</strong> — it's stored only in this browser, never sent anywhere but Groq.</div>
+    <input type="text" id="groq-key-input" placeholder="gsk_…" onkeydown="if(event.key==='Enter')document.getElementById('groq-key-submit').click()">
+    <div class="add-row">
+      <button id="groq-key-submit">Save key</button>
+      <button id="groq-key-cancel" style="background:var(--bg);color:var(--text);border:1px solid var(--border);">Skip for now</button>
+    </div>
+  </div>
+</div>
+
+<div class="footer-note">Shared live database via Supabase — every rep sees the same data in real time. Data layer is swappable: replace the seed generator with a real GST/Clay/enrichment feed and the CRM logic above works unchanged.</div>
+
+<script>
+/* =========================================================================
+   CONFIG — free-tier Supabase project. The "sharable" key is safe to embed
+   client-side; Row Level Security policies (see schema.sql) control access.
+   ========================================================================= */
+const SUPABASE_URL = 'https://qmlnxooguqsypwfsjhxa.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_zJCbT3xnOa1OkEei5Bc5wA_yw9Wh2m8';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* =========================================================================
+   GROQ — powers CSV column mapping, industry normalization, and the
+   "suggest next step" contact drawer feature. Unlike the Supabase key
+   (safe to embed — protected by RLS), a Groq key must NOT be committed to
+   a public repo. Each rep pastes their own key on first use; it's kept
+   only in that browser's localStorage, never in this file or git.
+   ========================================================================= */
+let GROQ_API_KEY = localStorage.getItem('gtm_crm_groq_key') || '';
+
+function openGroqKeyModal(){
+  return new Promise(resolve=>{
+    const modal = document.getElementById('groq-key-modal');
+    const input = document.getElementById('groq-key-input');
+    input.value = '';
+    modal.classList.add('active');
+    input.focus();
+    document.getElementById('groq-key-submit').onclick = ()=>{
+      const val = input.value.trim();
+      if (!val) return;
+      GROQ_API_KEY = val;
+      localStorage.setItem('gtm_crm_groq_key', val);
+      modal.classList.remove('active');
+      resolve(val);
+    };
+    document.getElementById('groq-key-cancel').onclick = ()=>{
+      modal.classList.remove('active');
+      resolve(null);
+    };
+  });
+}
+async function ensureGroqKey(){
+  if (GROQ_API_KEY) return GROQ_API_KEY;
+  return await openGroqKeyModal();
+}
+function changeGroqKey(){ GROQ_API_KEY = ''; return openGroqKeyModal(); }
+
+async function groqChat(messages, opts={}){
+  const key = await ensureGroqKey();
+  if (!key) throw new Error('Groq API key not set — click the AI button again to add one.');
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json', 'Authorization':'Bearer '+key},
+    body: JSON.stringify({
+      model: opts.model || 'llama-3.3-70b-versatile',
+      messages,
+      temperature: opts.temperature ?? 0.2,
+      max_tokens: opts.maxTokens ?? 500,
+      ...(opts.json ? {response_format:{type:'json_object'}} : {}),
+    }),
+  });
+  if (!res.ok) throw new Error('Groq error '+res.status+': '+(await res.text()));
+  const data = await res.json();
+  return data.choices[0].message.content;
+}
+
+/* =========================================================================
+   CSV PARSER — small dependency-free parser handling quoted fields.
+   ========================================================================= */
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i=0;i<text.length;i++){
+    const ch = text[i], next = text[i+1];
+    if (inQuotes){
+      if (ch === '"' && next === '"'){ field += '"'; i++; }
+      else if (ch === '"'){ inQuotes = false; }
+      else { field += ch; }
+    } else {
+      if (ch === '"'){ inQuotes = true; }
+      else if (ch === ','){ row.push(field); field=''; }
+      else if (ch === '\n' || ch === '\r'){
+        if (ch === '\r' && next === '\n') i++;
+        row.push(field); field='';
+        if (row.length>1 || row[0]!=='') rows.push(row);
+        row = [];
+      } else { field += ch; }
+    }
+  }
+  if (field!=='' || row.length){ row.push(field); rows.push(row); }
+  if (rows.length===0) return {headers:[], rows:[]};
+  const headers = rows[0].map(h=>h.trim());
+  const dataRows = rows.slice(1).filter(r=>r.some(c=>(c||'').trim()!==''));
+  return {headers, rows: dataRows};
+}
+
+/* =========================================================================
+   SEED GENERATOR — only used by the "Load starter accounts" button to
+   populate an empty database. Once real data is imported, this is unused.
+   ========================================================================= */
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rng = mulberry32(Date.now() & 0xffffffff);
+function pick(arr){ return arr[Math.floor(rng()*arr.length)]; }
+function randInt(min,max){ return Math.floor(rng()*(max-min+1))+min; }
+function fmtDate(d){ return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}); }
+
+const INDUSTRIES = [
+  {name:'Textiles & Apparel', tier:30}, {name:'Auto Components', tier:30},
+  {name:'Steel & Metals', tier:30}, {name:'Construction & Infra', tier:30},
+  {name:'FMCG & Foods', tier:20}, {name:'Electronics & Electricals', tier:20},
+  {name:'Chemicals', tier:20}, {name:'Packaging', tier:20}, {name:'Agro & Agri-inputs', tier:20},
+  {name:'Logistics & Warehousing', tier:10}, {name:'Retail & Distribution', tier:10},
+  {name:'Pharma & Life Sciences', tier:10}, {name:'IT & ITES', tier:5},
+];
+const STATES = ['Maharashtra','Gujarat','Delhi NCR','Karnataka','Tamil Nadu','Telangana','West Bengal','Uttar Pradesh','Rajasthan','Haryana','Punjab'];
+const NAME_PREFIX = ['Shree','Om','Sai','Krishna','Vijay','Bharat','Ganesh','Laxmi','Anand','Royal','National','United','Prime','Star','Sunrise','Metro','Everest','Golden','Silver','Diamond','Global','Trident','Apex','Pioneer','Radiant','Horizon','Vertex','Zenith','Nova','Orion','Suresh','Patel','Bansal','Agarwal','Mittal'];
+const NAME_MID = ['Vijay','Ratna','Deep','Sagar','Ganga','Kiran','Bharat','Uday','Amar','Surya','Chandra','','','',''];
+const NAME_SUFFIX = ['Textiles','Industries','Enterprises','Exports','Traders','Foods','Steel','Agro','Motors','Electronics','Chemicals','Packaging','Infra','Apparel','Logistics','Solutions'];
+const LEGAL = ['Pvt Ltd','Ltd','& Co','Industries Ltd'];
+function genCompanyName(){
+  const p = pick(NAME_PREFIX), m = pick(NAME_MID), s = pick(NAME_SUFFIX), l = pick(LEGAL);
+  return `${p}${m?' '+m:''} ${s} ${l}`;
+}
+const FIRST_NAMES = ['Rohan','Aditya','Vikram','Sanjay','Rajesh','Amit','Nikhil','Arjun','Karan','Manish','Priya','Neha','Anjali','Kavita','Divya','Pooja','Ritu','Sneha','Meera','Sunita','Deepak','Rakesh','Ashok','Anil','Suresh'];
+const LAST_NAMES = ['Sharma','Verma','Gupta','Mehta','Shah','Patel','Reddy','Iyer','Nair','Rao','Kapoor','Malhotra','Bansal','Agarwal','Chopra','Joshi','Desai','Kulkarni','Menon','Pillai'];
+const CFO_TITLES = ['Chief Financial Officer','VP Finance','Finance Director','Head of Finance'];
+const SALES_TITLES = ['Head of Sales','VP Sales','National Sales Head','Director of Sales'];
+function genPersonName(){ return `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`; }
+
+/* =========================================================================
+   ICP SCORING MODEL — editable from Settings. DEFAULT_WEIGHTS is the
+   fallback if the icp_weights row is ever missing.
+   ========================================================================= */
+const DEFAULT_WEIGHTS = {
+  qualifyThreshold: 60,
+  revenue: {minCr:60, maxCr:300, minScore:20, maxScore:40},
+  industryTiers: Object.fromEntries(INDUSTRIES.map(i=>[i.name, i.tier])),
+  complexity: {perStateScore:4, maxScore:30},
+};
+function activeWeights(){ return (DATA && DATA.icpWeights) || DEFAULT_WEIGHTS; }
+function computeScores(revenueCr, industry, gstStates, weights){
+  const w = weights || activeWeights();
+  const revenueScore = revenueCr < w.revenue.minCr ? 0 :
+    Math.round(Math.min(w.revenue.maxScore, w.revenue.minScore + ((revenueCr - w.revenue.minCr) / (w.revenue.maxCr - w.revenue.minCr)) * (w.revenue.maxScore - w.revenue.minScore)));
+  const industryScore = w.industryTiers[industry] ?? 0;
+  const complexityScore = Math.min(w.complexity.maxScore, gstStates * w.complexity.perStateScore);
+  const icpScore = revenueScore + industryScore + complexityScore;
+  const status = icpScore >= w.qualifyThreshold ? 'Qualified' : 'Cut';
+  return {revenueScore, industryScore, complexityScore, icpScore, status};
+}
+
+function buildSeedCompanies(count){
+  const rows = []; const usedNames = new Set(); const usedDomains = new Set();
+  for (let i=0;i<count;i++){
+    let name = genCompanyName();
+    while (usedNames.has(name)) name = genCompanyName();
+    usedNames.add(name);
+    let domain = name.toLowerCase().replace(/[^a-z]+/g,'') + '.in';
+    while (usedDomains.has(domain)) domain = name.toLowerCase().replace(/[^a-z]+/g,'') + randInt(1,9999) + '.in';
+    usedDomains.add(domain);
+    const industry = pick(INDUSTRIES);
+    const revenueCr = rng() < 0.4 ? randInt(15,59) : randInt(60,480);
+    const gstStates = randInt(1,9);
+    const scores = computeScores(revenueCr, industry.name, gstStates);
+    rows.push({
+      name, domain,
+      industry: industry.name, state: pick(STATES), revenue_cr: revenueCr, gst_states: gstStates,
+      revenue_score: scores.revenueScore, industry_score: scores.industryScore, complexity_score: scores.complexityScore,
+      icp_score: scores.icpScore, status: scores.status,
+    });
+  }
+  return rows;
+}
+function buildSeedContacts(companyId){
+  const rows = [];
+  ['CFO','Head of Sales'].forEach(persona=>{
+    if (rng() > 0.92) return;
+    rows.push({
+      company_id: companyId, persona, name: genPersonName(),
+      title: persona==='CFO' ? pick(CFO_TITLES) : pick(SALES_TITLES),
+      deal_stage: 'Outbound',
+    });
+  });
+  return rows;
+}
+function chunk(arr, size){ const out=[]; for(let i=0;i<arr.length;i+=size) out.push(arr.slice(i,i+size)); return out; }
+
+/* =========================================================================
+   DATA LAYER — Supabase is the shared source of truth. DATA is an
+   in-memory cache rebuilt on load and refreshed on realtime change events.
+   ========================================================================= */
+let DATA = { reps: [], companies: [], contacts: [], icpWeights: null, sequenceTemplates: [] };
+let CURRENT_REP = null;
+let openDrawerContactId = null;
+
+function fillTemplate(str, company){
+  return str.replace('{{company}}', company.name).replace('{{industry}}', company.industry);
+}
+
+function mapCompanyRow(r){
+  return { id:r.id, name:r.name, domain:r.domain, industry:r.industry, state:r.state,
+    revenueCr:r.revenue_cr, gstStates:r.gst_states, revenueScore:r.revenue_score,
+    industryScore:r.industry_score, complexityScore:r.complexity_score, icpScore:r.icp_score,
+    status:r.status, ownerId:r.owner_id, createdAt:r.created_at };
+}
+function mapTouchRow(r){
+  return { id:r.id, contactId:r.contact_id, num:r.num, date:r.touch_date, channel:r.channel, subject:r.subject };
+}
+function mapContactRow(r, companiesById){
+  const company = companiesById[r.company_id];
+  return { id:r.id, companyId:r.company_id, companyName: company?company.name:'(unknown)', industry: company?company.industry:'',
+    persona:r.persona, name:r.name, title:r.title, email:r.email, phone:r.phone, linkedinUrl:r.linkedin_url,
+    notes:r.notes||'', replied:r.replied, replyDate:r.reply_date, meeting:r.meeting, meetingDate:r.meeting_date,
+    unqualified:r.unqualified, dealStage:r.deal_stage, createdAt:r.created_at, touches:[] };
+}
+
+function showBanner(msg, isError){
+  document.getElementById('status-banner').innerHTML = msg ? `<div class="banner${isError?' error':''}">${msg}</div>` : '';
+}
+
+async function loadAllData(){
+  const [repsRes, companiesRes, contactsRes, touchesRes, weightsRes, templatesRes] = await Promise.all([
+    sb.from('reps').select('*').order('name'),
+    sb.from('companies').select('*'),
+    sb.from('contacts').select('*'),
+    sb.from('touches').select('*').order('num'),
+    sb.from('icp_weights').select('*').eq('key','default').maybeSingle(),
+    sb.from('sequence_templates').select('*').eq('active', true).order('sort_order'),
+  ]);
+  const firstError = [repsRes, companiesRes, contactsRes, touchesRes].find(r=>r.error);
+  if (firstError){
+    showBanner('Could not reach the shared database: ' + firstError.error.message, true);
+    throw firstError.error;
+  }
+  showBanner('');
+  DATA.reps = repsRes.data || [];
+  DATA.companies = (companiesRes.data || []).map(mapCompanyRow);
+  const companiesById = Object.fromEntries(DATA.companies.map(c=>[c.id,c]));
+  const touchesByContact = {};
+  (touchesRes.data||[]).forEach(t=>{ (touchesByContact[t.contact_id] ||= []).push(mapTouchRow(t)); });
+  DATA.contacts = (contactsRes.data||[]).map(r=>{
+    const c = mapContactRow(r, companiesById);
+    c.touches = (touchesByContact[c.id]||[]).sort((a,b)=>a.num-b.num);
+    return c;
+  });
+  DATA.icpWeights = weightsRes.data ? weightsRes.data.value : null;
+  DATA.sequenceTemplates = templatesRes.data || [];
+}
+
+function findContact(id){ return DATA.contacts.find(c=>c.id===id); }
+function findCompany(id){ return DATA.companies.find(c=>c.id===id); }
+function templatesFor(persona){ return DATA.sequenceTemplates.filter(t=>t.persona===persona).sort((a,b)=>a.day-b.day); }
+
+async function logActivity(entityType, entityId, action, detail){
+  try{ await sb.from('activity_log').insert({entity_type:entityType, entity_id:entityId, rep_id: CURRENT_REP?CURRENT_REP.id:null, action, detail}); }
+  catch(e){ console.error('activity log failed', e); }
+}
+
+async function logNextTouch(contactId){
+  const c = findContact(contactId);
+  const templates = templatesFor(c.persona);
+  const n = c.touches.length;
+  if (n>=templates.length) return;
+  const company = findCompany(c.companyId);
+  const t = templates[n];
+  const subject = fillTemplate(t.subject, company);
+  const {data, error} = await sb.from('touches').insert({contact_id:c.id, num:n+1, touch_date:new Date().toISOString(), channel:t.channel, subject}).select().single();
+  if (error){ showBanner('Failed to log touch: '+error.message, true); return; }
+  c.touches.push(mapTouchRow(data));
+  await logActivity('contact', c.id, 'Touch sent', `Touch ${n+1} · ${t.channel}`);
+  renderAll(); openContactDrawer(contactId);
+}
+async function logReply(contactId){
+  const c = findContact(contactId);
+  const now = new Date().toISOString();
+  const {error} = await sb.from('contacts').update({replied:true, reply_date:now, deal_stage:'Replied'}).eq('id', c.id);
+  if (error){ showBanner('Failed: '+error.message, true); return; }
+  Object.assign(c, {replied:true, replyDate:now, dealStage:'Replied'});
+  await logActivity('contact', c.id, 'Reply logged', null);
+  renderAll(); openContactDrawer(contactId);
+}
+async function logMeeting(contactId){
+  const c = findContact(contactId);
+  const now = new Date().toISOString();
+  const updates = {meeting:true, meeting_date:now, deal_stage:'Meeting Booked'};
+  if (!c.replied){ updates.replied=true; updates.reply_date=now; }
+  const {error} = await sb.from('contacts').update(updates).eq('id', c.id);
+  if (error){ showBanner('Failed: '+error.message, true); return; }
+  Object.assign(c, {meeting:true, meetingDate:now, dealStage:'Meeting Booked', replied:true, replyDate:c.replyDate||now});
+  await logActivity('contact', c.id, 'Meeting booked', null);
+  renderAll(); openContactDrawer(contactId);
+}
+async function markUnqualified(contactId){
+  const c = findContact(contactId);
+  const {error} = await sb.from('contacts').update({unqualified:true, deal_stage:'Unqualified'}).eq('id', c.id);
+  if (error){ showBanner('Failed: '+error.message, true); return; }
+  Object.assign(c, {unqualified:true, dealStage:'Unqualified'});
+  await logActivity('contact', c.id, 'Marked unqualified', null);
+  renderAll(); openContactDrawer(contactId);
+}
+const LATE_STAGES = ['Meeting Held','Proposal','Closed Won','Closed Lost'];
+async function setDealStage(contactId, stage){
+  const c = findContact(contactId);
+  const updates = {deal_stage: stage};
+  if (LATE_STAGES.includes(stage)){
+    updates.meeting = true;
+    updates.replied = true;
+    if (!c.meetingDate) updates.meeting_date = new Date().toISOString();
+    if (!c.replyDate) updates.reply_date = new Date().toISOString();
+  }
+  const {error} = await sb.from('contacts').update(updates).eq('id', c.id);
+  if (error){ showBanner('Failed: '+error.message, true); return; }
+  Object.assign(c, {
+    dealStage: stage,
+    meeting: updates.meeting !== undefined ? updates.meeting : c.meeting,
+    meetingDate: updates.meeting_date || c.meetingDate,
+    replied: updates.replied !== undefined ? updates.replied : c.replied,
+    replyDate: updates.reply_date || c.replyDate,
+  });
+  await logActivity('contact', c.id, 'Stage changed', stage);
+  renderAll(); openContactDrawer(contactId);
+}
+let notesSaveTimer = null;
+function queueSaveNotes(contactId, notes){
+  clearTimeout(notesSaveTimer);
+  document.getElementById('notes-save-indicator').textContent = 'Saving…';
+  notesSaveTimer = setTimeout(()=>saveNotes(contactId, notes), 700);
+}
+async function saveNotes(contactId, notes){
+  const c = findContact(contactId);
+  const {error} = await sb.from('contacts').update({notes}).eq('id', c.id);
+  const ind = document.getElementById('notes-save-indicator');
+  if (error){ if(ind) ind.textContent = 'Failed to save'; return; }
+  c.notes = notes;
+  if (ind) ind.textContent = 'Saved';
+  await logActivity('contact', c.id, 'Note updated', notes.slice(0,80));
+}
+async function suggestNextStep(contactId){
+  const btn = document.getElementById('suggest-btn');
+  const box = document.getElementById('suggestion-box');
+  if (btn){ btn.disabled = true; btn.textContent = 'Thinking…'; }
+  if (box) box.textContent = '';
+  try{
+    const c = findContact(contactId);
+    const company = findCompany(c.companyId);
+    const touchLines = c.touches.map(t=>`${fmtDate(new Date(t.date))}: ${t.channel} — "${t.subject}"`).join('\n') || 'No touches sent yet.';
+    const prompt = `You are a sales assistant helping a rep at a working-capital fintech.
+Contact: ${c.name}, ${c.title} (persona: ${c.persona}) at ${company.name} (${company.industry}, ₹${company.revenueCr} Cr revenue, ICP score ${company.icpScore}).
+Deal stage: ${c.dealStage}. Replied: ${c.replied}. Meeting booked: ${c.meeting}.
+Touch history:
+${touchLines}
+Rep's notes: "${c.notes || 'none'}"
+
+In one short sentence (max 25 words), suggest the single most useful next action for the rep to take with this contact right now.`;
+    const content = await groqChat([{role:'user', content: prompt}], {maxTokens:80});
+    if (box) box.innerHTML = `<div class="banner" style="margin:0;">${content.trim()}</div>`;
+  } catch(err){
+    if (box) box.innerHTML = `<div style="color:var(--red);font-size:11.5px;">Couldn't get a suggestion: ${err.message}</div>`;
+  } finally {
+    if (btn){ btn.disabled = false; btn.textContent = '✨ Suggest next step (AI)'; }
+  }
+}
+async function setOwner(companyId, repId){
+  const company = findCompany(companyId);
+  const {error} = await sb.from('companies').update({owner_id: repId || null}).eq('id', companyId);
+  if (error){ showBanner('Failed: '+error.message, true); return; }
+  company.ownerId = repId || null;
+  const repName = repId ? (DATA.reps.find(r=>r.id===repId)||{}).name : 'Unassigned';
+  await logActivity('company', companyId, 'Owner changed', repName);
+  renderAll();
+}
+
+async function seedStarterAccounts(){
+  if (!confirm('Add starter accounts to the shared database? Safe to run more than once — duplicates by domain are skipped.')) return;
+  const btn = document.getElementById('seed-btn');
+  btn.disabled = true; btn.textContent = 'Adding…';
+  try{
+    const {data: existing, error: ee} = await sb.from('companies').select('domain');
+    if (ee) throw ee;
+    const existingDomains = new Set((existing||[]).map(r=>(r.domain||'').toLowerCase()));
+    const seedRows = buildSeedCompanies(150).filter(r=>!existingDomains.has(r.domain.toLowerCase()));
+    let insertedCompanies = [];
+    if (seedRows.length){
+      const {data, error: ce} = await sb.from('companies').insert(seedRows).select();
+      if (ce) throw ce;
+      insertedCompanies = data;
+    }
+    const qualified = insertedCompanies.filter(c=>c.status==='Qualified');
+    for (const batch of chunk(qualified, 100)){
+      const contactRows = [];
+      batch.forEach(co=>{ contactRows.push(...buildSeedContacts(co.id)); });
+      if (contactRows.length){
+        const {error: xe} = await sb.from('contacts').insert(contactRows);
+        if (xe) throw xe;
+      }
+    }
+    await loadAllData();
+    renderAll();
+    btn.textContent = 'Load starter accounts';
+  } catch(e){
+    showBanner('Seeding failed: '+e.message, true);
+    btn.textContent = 'Load starter accounts';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* =========================================================================
+   CSV IMPORT — Groq maps messy headers to our schema and normalizes
+   industry labels; nothing writes to Supabase until the user confirms.
+   ========================================================================= */
+const IMPORT_FIELDS = [
+  {key:'name', label:'Company name', required:true},
+  {key:'domain', label:'Domain / website', required:false},
+  {key:'industry', label:'Industry', required:false},
+  {key:'state', label:'State', required:false},
+  {key:'revenue_cr', label:'Revenue (₹Cr)', required:false},
+  {key:'gst_states', label:'GST state registrations (count)', required:false},
+];
+let importState = { headers:[], rows:[] };
+
+function openImportModal(){
+  importState = { headers:[], rows:[] };
+  document.getElementById('import-body').innerHTML = `
+    <input type="file" id="import-file-input" accept=".csv" onchange="handleImportFile(event)">
+    <div id="import-status" style="margin-top:10px;font-size:12px;color:var(--muted);"></div>
+  `;
+  document.getElementById('import-modal').classList.add('active');
+}
+function closeImportModal(){ document.getElementById('import-modal').classList.remove('active'); }
+
+async function handleImportFile(e){
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('import-status');
+  statusEl.textContent = 'Reading file…';
+  const text = await file.text();
+  const {headers, rows} = parseCSV(text);
+  if (headers.length===0 || rows.length===0){ statusEl.textContent = 'Could not find any rows in this file.'; return; }
+  importState.headers = headers;
+  importState.rows = rows;
+  statusEl.textContent = `Parsed ${rows.length} rows. Asking Groq to map columns…`;
+  let mapping = {};
+  try{ mapping = await groqSuggestMapping(headers, rows); }
+  catch(err){ statusEl.textContent = 'Groq mapping failed (' + err.message + ') — map columns manually below.'; }
+  renderImportMappingStep(mapping);
+}
+
+async function groqSuggestMapping(headers, sampleRows){
+  const sample = sampleRows.slice(0,5).map(r=>Object.fromEntries(headers.map((h,i)=>[h, r[i]])));
+  const prompt = `You are mapping a messy CSV export of Indian companies (GST/Clay export) to a fixed schema.
+CSV headers: ${JSON.stringify(headers)}
+Sample rows: ${JSON.stringify(sample)}
+
+Target schema fields:
+- name: company / business legal name
+- domain: website URL or email domain
+- industry: business sector or category
+- state: Indian state where registered
+- revenue_cr: annual revenue in INR crores (numeric)
+- gst_states: number of GST state registrations (numeric, proxy for multi-location operations)
+
+For each target field, return the CSV header that best matches it, or null if no reasonable match exists. Respond with ONLY a JSON object, e.g. {"name":"Company Name","domain":null,"industry":"Sector","state":"State","revenue_cr":"Revenue (Cr)","gst_states":null}`;
+  const content = await groqChat([{role:'user', content:prompt}], {json:true, maxTokens:300});
+  try { return JSON.parse(content); } catch(e){ return {}; }
+}
+
+async function groqNormalizeIndustries(rawValues){
+  const known = INDUSTRIES.map(i=>i.name);
+  const uniqueRaw = Array.from(new Set(rawValues.filter(Boolean)));
+  if (uniqueRaw.length===0) return {};
+  const prompt = `Map each raw industry/sector label to the single closest matching category from this fixed list:
+${JSON.stringify(known)}
+
+Raw labels to map: ${JSON.stringify(uniqueRaw)}
+
+Return ONLY a JSON object where each key is one of the raw labels (verbatim, exact match) and the value is the matched category from the list above.`;
+  const content = await groqChat([{role:'user', content:prompt}], {json:true, maxTokens:800});
+  try { return JSON.parse(content); } catch(e){ return {}; }
+}
+
+function renderImportMappingStep(mapping){
+  const headerOptions = ['<option value="">— none —</option>'].concat(importState.headers.map(h=>`<option value="${h}">${h}</option>`)).join('');
+  document.getElementById('import-body').innerHTML = `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">${importState.rows.length} rows found. Review the column mapping (edit any dropdown if it guessed wrong):</div>
+    <table class="settings-table">
+      <tr><th>Field</th><th>CSV column</th></tr>
+      ${IMPORT_FIELDS.map(f=>`
+        <tr>
+          <td>${f.label}${f.required?' *':''}</td>
+          <td><select id="map-${f.key}">${headerOptions}</select></td>
+        </tr>`).join('')}
+    </table>
+    <div id="import-preview" style="margin-top:14px;"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="save-btn" onclick="confirmImport()">Confirm import</button>
+      <button class="reset-btn" onclick="closeImportModal()">Cancel</button>
+    </div>
+    <div id="import-final-status" style="margin-top:10px;font-size:12px;"></div>
+  `;
+  IMPORT_FIELDS.forEach(f=>{
+    const sel = document.getElementById('map-'+f.key);
+    const guess = mapping[f.key];
+    if (guess && importState.headers.includes(guess)) sel.value = guess;
+    sel.addEventListener('change', renderImportPreview);
+  });
+  renderImportPreview();
+}
+
+function importGetVal(row, field){
+  const header = document.getElementById('map-'+field).value;
+  if (!header) return '';
+  const idx = importState.headers.indexOf(header);
+  return idx>=0 ? (row[idx]||'').trim() : '';
+}
+
+function renderImportPreview(){
+  const previewRows = importState.rows.slice(0,5);
+  document.getElementById('import-preview').innerHTML = `
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Preview (first 5 rows):</div>
+    <table class="settings-table">
+      <tr>${IMPORT_FIELDS.map(f=>`<th>${f.label}</th>`).join('')}</tr>
+      ${previewRows.map(r=>`<tr>${IMPORT_FIELDS.map(f=>`<td>${importGetVal(r,f.key)||'—'}</td>`).join('')}</tr>`).join('')}
+    </table>
+  `;
+}
+
+function parseRevenue(v){
+  if (!v) return 0;
+  const n = parseFloat(String(v).replace(/[^0-9.]/g,''));
+  return isNaN(n) ? 0 : Math.round(n);
+}
+function parseGstStates(v){
+  if (!v) return 1;
+  const n = parseInt(String(v).replace(/[^0-9]/g,''),10);
+  return isNaN(n) || n<1 ? 1 : n;
+}
+
+async function confirmImport(){
+  const nameHeader = document.getElementById('map-name').value;
+  const statusEl = document.getElementById('import-final-status');
+  if (!nameHeader){ statusEl.innerHTML = '<span style="color:var(--red);">Company name column is required.</span>'; return; }
+
+  statusEl.textContent = 'Normalizing industry labels with Groq…';
+  const rawIndustries = importState.rows.map(r=>importGetVal(r,'industry')).filter(Boolean);
+  let industryMap = {};
+  try{ industryMap = await groqNormalizeIndustries(rawIndustries); }
+  catch(err){ console.error('Industry normalization failed', err); }
+
+  statusEl.textContent = 'Checking for duplicates…';
+  const {data: existing, error: ee} = await sb.from('companies').select('domain');
+  if (ee){ statusEl.innerHTML = '<span style="color:var(--red);">Failed: '+ee.message+'</span>'; return; }
+  const existingDomains = new Set((existing||[]).map(r=>(r.domain||'').toLowerCase()).filter(Boolean));
+
+  const seenInBatch = new Set();
+  const toInsert = [];
+  let skippedNoName = 0, skippedDup = 0;
+
+  importState.rows.forEach(row=>{
+    const name = importGetVal(row,'name');
+    if (!name){ skippedNoName++; return; }
+    let domain = importGetVal(row,'domain').toLowerCase().replace(/^https?:\/\//,'').replace(/^www\./,'').split('/')[0];
+    if (!domain) domain = name.toLowerCase().replace(/[^a-z]+/g,'') + '.in';
+    if (existingDomains.has(domain) || seenInBatch.has(domain)){ skippedDup++; return; }
+    seenInBatch.add(domain);
+
+    const rawIndustry = importGetVal(row,'industry');
+    const industry = industryMap[rawIndustry] || (INDUSTRIES.find(i=>i.name===rawIndustry) ? rawIndustry : INDUSTRIES[INDUSTRIES.length-1].name);
+    const state = importGetVal(row,'state') || '';
+    const revenueCr = parseRevenue(importGetVal(row,'revenue_cr'));
+    const gstStates = parseGstStates(importGetVal(row,'gst_states'));
+    const scores = computeScores(revenueCr, industry, gstStates);
+
+    toInsert.push({
+      name, domain, industry, state, revenue_cr: revenueCr, gst_states: gstStates,
+      revenue_score: scores.revenueScore, industry_score: scores.industryScore, complexity_score: scores.complexityScore,
+      icp_score: scores.icpScore, status: scores.status,
+    });
+  });
+
+  statusEl.textContent = `Importing ${toInsert.length} companies…`;
+  let inserted = 0;
+  for (const batch of chunk(toInsert, 200)){
+    const {error} = await sb.from('companies').insert(batch);
+    if (error){ statusEl.innerHTML = `<span style="color:var(--red);">Import failed: ${error.message}</span>`; return; }
+    inserted += batch.length;
+  }
+  await loadAllData();
+  renderAll();
+  statusEl.innerHTML = `<strong>Done.</strong> Imported ${inserted} companies. Skipped ${skippedDup} duplicates (existing domain) and ${skippedNoName} rows with no name.`;
+}
+
+/* =========================================================================
+   IDENTITY — no passwords, just an attribution picker per device.
+   ========================================================================= */
+function openRepPicker(){
+  const list = document.getElementById('rep-list');
+  list.innerHTML = DATA.reps.map(r=>`<button class="rep-chip" onclick="selectRep('${r.id}')">${r.name}</button>`).join('')
+    || '<div style="color:var(--muted);font-size:12px;">No reps yet — add yourself below.</div>';
+  document.getElementById('rep-modal').classList.add('active');
+}
+function closeRepPicker(){ document.getElementById('rep-modal').classList.remove('active'); }
+function updateRepBadge(){
+  document.getElementById('rep-badge').textContent = CURRENT_REP ? CURRENT_REP.name : 'Set your name';
+}
+function selectRep(repId){
+  const rep = DATA.reps.find(r=>r.id===repId);
+  if (!rep) return;
+  CURRENT_REP = rep;
+  localStorage.setItem('gtm_crm_rep_id', rep.id);
+  updateRepBadge();
+  closeRepPicker();
+  renderAll();
+}
+async function addNewRep(){
+  const input = document.getElementById('rep-new-name');
+  const name = input.value.trim();
+  if (!name) return;
+  const existing = DATA.reps.find(r=>r.name.toLowerCase()===name.toLowerCase());
+  if (existing){ selectRep(existing.id); return; }
+  const {data, error} = await sb.from('reps').insert({name}).select().single();
+  if (error){ showBanner('Failed to add rep: '+error.message, true); return; }
+  DATA.reps.push(data);
+  input.value = '';
+  selectRep(data.id);
+}
+function ensureRep(){
+  const savedId = localStorage.getItem('gtm_crm_rep_id');
+  const rep = savedId ? DATA.reps.find(r=>r.id===savedId) : null;
+  if (rep){ CURRENT_REP = rep; updateRepBadge(); }
+  else { openRepPicker(); }
+}
+
+/* =========================================================================
+   DERIVED DISPLAY
+   ========================================================================= */
+const STAGE_META = {
+  'Replied': {label:'Replied', cls:'status-replied'},
+  'Meeting Booked': {label:'Meeting Booked', cls:'status-meeting'},
+  'Meeting Held': {label:'Meeting Held', cls:'status-held'},
+  'Proposal': {label:'Proposal', cls:'status-proposal'},
+  'Closed Won': {label:'Closed Won', cls:'status-won'},
+  'Closed Lost': {label:'Closed Lost', cls:'status-lost'},
+  'Unqualified': {label:'Unqualified', cls:'status-unqualified'},
+};
+function scoreClass(score){ return score>=75?'score-high':score>=50?'score-mid':'score-low'; }
+
+function deriveContactDisplay(contact){
+  const touchCount = contact.touches.length;
+  const lastTouchDate = touchCount ? contact.touches[touchCount-1].date : null;
+  let statusLabel, statusClass;
+  const meta = STAGE_META[contact.dealStage];
+  if (meta){ statusLabel = meta.label; statusClass = meta.cls; }
+  else if (touchCount===0){ statusLabel='Not Started'; statusClass='status-notstarted'; }
+  else if (touchCount>=4){ statusLabel='Touch 4 Sent (Breakup)'; statusClass='status-touch'; }
+  else { statusLabel=`Touch ${touchCount} Sent`; statusClass='status-touch'; }
+
+  let dueDate=null, isOverdue=false, isDueToday=false;
+  if (contact.dealStage==='Outbound'){
+    const templates = templatesFor(contact.persona);
+    const next = templates[touchCount];
+    if (next){
+      const prevDay = touchCount>0 ? templates[touchCount-1].day : 0;
+      const anchor = touchCount>0 ? new Date(contact.touches[touchCount-1].date) : new Date(contact.createdAt || Date.now());
+      const gap = touchCount>0 ? (next.day - prevDay) : next.day;
+      dueDate = new Date(anchor); dueDate.setDate(dueDate.getDate() + gap);
+      const today = new Date(); today.setHours(0,0,0,0);
+      const due = new Date(dueDate); due.setHours(0,0,0,0);
+      isOverdue = due < today;
+      isDueToday = due.getTime() === today.getTime();
+    }
+  }
+  return {...contact, touchCount, lastTouchDate, statusLabel, statusClass, dueDate, isOverdue, isDueToday};
+}
+
+function myAccountsOnly(){ return document.getElementById('my-accounts-toggle').checked; }
+function visibleCompanies(){
+  if (!myAccountsOnly() || !CURRENT_REP) return DATA.companies;
+  return DATA.companies.filter(c=>c.ownerId===CURRENT_REP.id);
+}
+function visibleContacts(){
+  const ids = new Set(visibleCompanies().map(c=>c.id));
+  return DATA.contacts.filter(c=>ids.has(c.companyId));
+}
+
+/* =========================================================================
+   RENDER
+   ========================================================================= */
+function renderDashboard(){
+  const companies = visibleCompanies();
+  const contacts = visibleContacts();
+  const qualified = companies.filter(c=>c.status==='Qualified').length;
+  const inSequence = contacts.filter(c=>c.touches.length>0).length;
+  const replies = contacts.filter(c=>c.replied).length;
+  const meetings = contacts.filter(c=>c.meeting).length;
+
+  document.getElementById('dashboard-cards').innerHTML = `
+    <div class="card"><div class="num">${companies.length.toLocaleString()}</div><div class="label">Accounts sourced</div></div>
+    <div class="card"><div class="num">${qualified.toLocaleString()}</div><div class="label">Qualified (ICP ≥ 60)</div><div class="sub">${companies.length?(qualified/companies.length*100).toFixed(1):0}% of sourced</div></div>
+    <div class="card"><div class="num">${contacts.length.toLocaleString()}</div><div class="label">Contacts enriched</div></div>
+    <div class="card"><div class="num">${replies.toLocaleString()}</div><div class="label">Replies logged</div><div class="sub">${contacts.length?(replies/contacts.length*100).toFixed(1):0}% reply rate</div></div>
+    <div class="card"><div class="num">${meetings.toLocaleString()}</div><div class="label">Meetings booked</div></div>
+    <div class="card"><div class="num">₹0</div><div class="label">Paid tool spend</div></div>
+  `;
+
+  const stages = [
+    ['1. Sourced', companies.length],
+    ['2. Qualified (≥60)', qualified],
+    ['3. Contacts enriched', contacts.length],
+    ['4. Sequenced', inSequence],
+    ['5. Replied / Meeting', replies],
+  ];
+  const max = Math.max(1, stages[0][1]);
+  document.getElementById('funnel-container').innerHTML = stages.map((s,i)=>{
+    const pct = s[1]/max*100;
+    const prevPct = i>0 && stages[i-1][1] ? (s[1]/stages[i-1][1]*100).toFixed(0)+'%' : '';
+    return `<div class="funnel-row">
+      <div class="funnel-label">${s[0]}</div>
+      <div class="funnel-bar-wrap"><div class="funnel-bar" style="width:${pct}%">${s[1].toLocaleString()}</div></div>
+      <div class="funnel-conv">${prevPct}</div>
+    </div>`;
+  }).join('');
+
+  const derived = contacts.map(deriveContactDisplay);
+  const due = derived.filter(c=>c.dealStage==='Outbound' && !c.unqualified && (c.isOverdue || c.isDueToday))
+    .sort((a,b)=> (a.dueDate||0) - (b.dueDate||0));
+  document.getElementById('due-list').innerHTML = due.length===0
+    ? '<div style="color:var(--muted);font-size:12px;">Nothing due right now.</div>'
+    : due.slice(0,10).map(c=>`
+      <div class="due-item">
+        <span>
+          <span class="badge ${c.isOverdue?'overdue':'due-today'}">${c.isOverdue?'Overdue':'Due today'}</span>
+          <strong>${c.name}</strong> · ${c.companyName}
+        </span>
+        <button onclick="openContactDrawer('${c.id}')">Open</button>
+      </div>`).join('') + (due.length>10 ? `<div style="font-size:11px;color:var(--muted);margin-top:6px;">+${due.length-10} more</div>` : '');
+
+  const outcomeStages = ['Meeting Held','Proposal','Closed Won','Closed Lost'];
+  document.getElementById('outcome-stats').innerHTML = outcomeStages.map(s=>{
+    const n = contacts.filter(c=>c.dealStage===s).length;
+    return `<div class="pbar-row"><div class="plabel">${s}</div><div class="pbar-track"><div class="pbar-fill" style="width:${meetings?Math.min(100,n/Math.max(1,meetings)*100):0}%;background:var(--accent);"></div></div><div class="pbar-val">${n}</div></div>`;
+  }).join('');
+
+  const personas = ['CFO','Head of Sales'];
+  document.getElementById('persona-stats').innerHTML = personas.map(p=>{
+    const pc = contacts.filter(c=>c.persona===p);
+    const r = pc.filter(c=>c.replied).length;
+    const m = pc.filter(c=>c.meeting).length;
+    const replyPct = pc.length ? (r/pc.length*100).toFixed(0) : 0;
+    const meetPct = pc.length ? (m/pc.length*100).toFixed(0) : 0;
+    return `<div class="persona-bar-group">
+      <div class="pname">${p} <span style="color:var(--muted);font-weight:400;">(${pc.length} contacts)</span></div>
+      <div class="pbar-row"><div class="plabel">Reply rate</div><div class="pbar-track"><div class="pbar-fill" style="width:${replyPct}%;background:var(--accent);"></div></div><div class="pbar-val">${replyPct}%</div></div>
+      <div class="pbar-row"><div class="plabel">Meeting rate</div><div class="pbar-track"><div class="pbar-fill" style="width:${meetPct}%;background:var(--green);"></div></div><div class="pbar-val">${meetPct}%</div></div>
+    </div>`;
+  }).join('');
+
+  const buckets = [[0,20],[20,40],[40,60],[60,80],[80,101]];
+  const maxBucket = Math.max(1, ...buckets.map(b=>companies.filter(c=>c.icpScore>=b[0]&&c.icpScore<b[1]).length));
+  document.getElementById('score-dist').innerHTML = buckets.map(b=>{
+    const n = companies.filter(c=>c.icpScore>=b[0]&&c.icpScore<b[1]).length;
+    const pct = (n/maxBucket*100);
+    const color = b[0]>=60 ? 'var(--green)' : b[0]>=40 ? 'var(--amber)' : 'var(--red)';
+    return `<div class="pbar-row"><div class="plabel">${b[0]}–${b[1]-1}</div><div class="pbar-track"><div class="pbar-fill" style="width:${pct}%;background:${color};"></div></div><div class="pbar-val">${n} accts</div></div>`;
+  }).join('');
+}
+
+let acctSort = {key:'icpScore', dir:-1};
+function renderAccounts(){
+  const industrySel = document.getElementById('acct-industry-filter');
+  if (industrySel.options.length<=1){
+    INDUSTRIES.forEach(ind=>{
+      const opt = document.createElement('option'); opt.value=ind.name; opt.textContent=ind.name;
+      industrySel.appendChild(opt);
+    });
+  }
+  const search = document.getElementById('acct-search').value.toLowerCase();
+  const statusF = document.getElementById('acct-status-filter').value;
+  const industryF = document.getElementById('acct-industry-filter').value;
+
+  let rows = visibleCompanies().filter(c=>{
+    if (statusF!=='all' && c.status!==statusF) return false;
+    if (industryF!=='all' && c.industry!==industryF) return false;
+    if (search && !(c.name.toLowerCase().includes(search) || (c.industry||'').toLowerCase().includes(search))) return false;
+    return true;
+  });
+  rows.sort((a,b)=> (a[acctSort.key]>b[acctSort.key]?1:-1) * acctSort.dir);
+
+  document.getElementById('acct-count').textContent = `${rows.length} of ${DATA.companies.length} accounts`;
+  const repOptions = DATA.reps.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+  document.getElementById('acct-tbody').innerHTML = rows.map(c=>`
+    <tr onclick="toggleAccountRow('${c.id}')" data-acct-row="${c.id}">
+      <td><strong>${c.name}</strong><div style="color:var(--muted);font-size:11px;">${c.domain||''}</div></td>
+      <td>${c.industry||''}</td>
+      <td>${c.state||''}</td>
+      <td>₹${c.revenueCr||0} Cr</td>
+      <td><span class="score-pill ${scoreClass(c.icpScore)}">${c.icpScore}</span></td>
+      <td><span class="badge ${c.status==='Qualified'?'qualified':'cut'}">${c.status}</span></td>
+      <td onclick="event.stopPropagation()">
+        <select class="owner-select" onchange="setOwner('${c.id}', this.value)">
+          <option value="">Unassigned</option>
+          ${repOptions}
+        </select>
+      </td>
+    </tr>
+  `).join('');
+  rows.forEach(c=>{
+    const row = document.querySelector(`tr[data-acct-row="${c.id}"] .owner-select`);
+    if (row) row.value = c.ownerId || '';
+  });
+}
+
+function toggleAccountRow(companyId){
+  const existing = document.querySelector(`tr[data-expand-for="${companyId}"]`);
+  if (existing){ existing.remove(); return; }
+  document.querySelectorAll('tr[data-expand-for]').forEach(r=>r.remove());
+  const contacts = DATA.contacts.filter(c=>c.companyId===companyId);
+  const row = document.querySelector(`tr[data-acct-row="${companyId}"]`);
+  if (!row) return;
+  const tr = document.createElement('tr');
+  tr.className = 'expand-row';
+  tr.setAttribute('data-expand-for', companyId);
+  const td = document.createElement('td');
+  td.colSpan = 7;
+  if (contacts.length===0){
+    td.innerHTML = `<div class="contact-mini" style="color:var(--muted);">No contacts enriched for this account yet.</div>`;
+  } else {
+    td.innerHTML = contacts.map(c=>{
+      const d = deriveContactDisplay(c);
+      return `<div class="contact-mini" onclick="event.stopPropagation();openContactDrawer('${c.id}')" style="cursor:pointer;">
+        <span><span class="badge ${c.persona==='CFO'?'cfo':'sales'}">${c.persona}</span> ${c.name} — ${c.title||''}</span>
+        <span class="badge ${d.statusClass}">${d.statusLabel}</span>
+      </div>`;
+    }).join('');
+  }
+  tr.appendChild(td);
+  row.after(tr);
+}
+
+let contactSort = {key:'lastTouchDate', dir:-1};
+function renderContacts(){
+  const search = document.getElementById('contact-search').value.toLowerCase();
+  const personaF = document.getElementById('contact-persona-filter').value;
+  const statusF = document.getElementById('contact-status-filter').value;
+
+  let rows = visibleContacts().map(deriveContactDisplay).filter(c=>{
+    if (personaF!=='all' && c.persona!==personaF) return false;
+    if (statusF!=='all'){
+      if (statusF==='In Sequence'){ if (!(c.touchCount>0 && c.dealStage==='Outbound')) return false; }
+      else if (statusF==='Not Started'){ if (!(c.touchCount===0 && c.dealStage==='Outbound')) return false; }
+      else { if (c.statusLabel!==statusF) return false; }
+    }
+    if (search && !(c.name.toLowerCase().includes(search) || c.companyName.toLowerCase().includes(search))) return false;
+    return true;
+  });
+  rows.sort((a,b)=>{
+    const av=a[contactSort.key]||'', bv=b[contactSort.key]||'';
+    return (av>bv?1:-1)*contactSort.dir;
+  });
+
+  document.getElementById('contact-count').textContent = `${rows.length} of ${DATA.contacts.length} contacts`;
+  document.getElementById('contact-tbody').innerHTML = rows.map(c=>`
+    <tr onclick="openContactDrawer('${c.id}')">
+      <td><strong>${c.name}</strong><div style="color:var(--muted);font-size:11px;">${c.title||''}</div></td>
+      <td><span class="badge ${c.persona==='CFO'?'cfo':'sales'}">${c.persona}</span></td>
+      <td>${c.companyName}</td>
+      <td>${c.touchCount}/4</td>
+      <td>${c.lastTouchDate ? fmtDate(new Date(c.lastTouchDate)) : '—'}</td>
+      <td>
+        <span class="badge ${c.statusClass}">${c.statusLabel}</span>
+        ${c.isOverdue ? '<span class="badge overdue">Overdue</span>' : c.isDueToday ? '<span class="badge due-today">Due today</span>' : ''}
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderSequences(){
+  ['CFO','Head of Sales'].forEach(p=>{
+    const el = document.getElementById(p==='CFO'?'seq-cfo':'seq-sales');
+    el.innerHTML = templatesFor(p).map(t=>`
+      <div class="touch-step">
+        <div class="touch-day">Day ${t.day}</div>
+        <div class="touch-body"><div class="ch">${t.channel}</div><div class="subj">${t.subject.replace('{{company}}','[Account]').replace('{{industry}}','[Industry]')}</div></div>
+      </div>
+    `).join('') || '<div style="color:var(--muted);font-size:12px;">No template configured.</div>';
+  });
+
+  const cols = [
+    {label:'Not Started', filter:c=>c.dealStage==='Outbound' && c.touchCount===0},
+    {label:'In Sequence', filter:c=>c.dealStage==='Outbound' && c.touchCount>0},
+    {label:'Replied', filter:c=>c.dealStage==='Replied'},
+    {label:'Meeting Booked', filter:c=>c.dealStage==='Meeting Booked'},
+    {label:'Meeting Held', filter:c=>c.dealStage==='Meeting Held'},
+    {label:'Proposal', filter:c=>c.dealStage==='Proposal'},
+    {label:'Closed Won', filter:c=>c.dealStage==='Closed Won'},
+    {label:'Closed Lost', filter:c=>c.dealStage==='Closed Lost'},
+  ];
+  const derived = visibleContacts().map(deriveContactDisplay);
+  document.getElementById('kanban').innerHTML = cols.map(col=>{
+    const items = derived.filter(col.filter);
+    return `<div class="kanban-col">
+      <h4>${col.label} <span class="n">${items.length}</span></h4>
+      ${items.slice(0,8).map(c=>`
+        <div class="kchip" onclick="openContactDrawer('${c.id}')">
+          <div class="kname">${c.name}</div>
+          <div class="kco">${c.companyName}</div>
+        </div>`).join('')}
+      ${items.length>8 ? `<div style="font-size:10.5px;color:var(--muted);text-align:center;">+${items.length-8} more</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+/* =========================================================================
+   SETTINGS — editable ICP weights and sequence templates.
+   ========================================================================= */
+function renderSettings(){
+  const groqStatusEl = document.getElementById('groq-key-status');
+  if (groqStatusEl){
+    groqStatusEl.innerHTML = GROQ_API_KEY
+      ? `<span style="color:var(--green);font-weight:600;">✓ Key set on this device</span>`
+      : `<span style="color:var(--muted);">No key set yet — AI features will prompt for one when used.</span>`;
+  }
+  const w = activeWeights();
+  document.getElementById('weights-fields').innerHTML = `
+    <div class="weights-field"><label>Qualify threshold (score ≥)</label><input type="number" id="w-threshold" value="${w.qualifyThreshold}"></div>
+    <div class="weights-field"><label>Revenue floor (₹Cr)</label><input type="number" id="w-rev-min-cr" value="${w.revenue.minCr}"></div>
+    <div class="weights-field"><label>Revenue cap (₹Cr)</label><input type="number" id="w-rev-max-cr" value="${w.revenue.maxCr}"></div>
+    <div class="weights-field"><label>Revenue score at floor</label><input type="number" id="w-rev-min-score" value="${w.revenue.minScore}"></div>
+    <div class="weights-field"><label>Revenue score at cap</label><input type="number" id="w-rev-max-score" value="${w.revenue.maxScore}"></div>
+    <div class="weights-field"><label>GST complexity — points/state</label><input type="number" id="w-cx-per-state" value="${w.complexity.perStateScore}"></div>
+    <div class="weights-field"><label>GST complexity — max points</label><input type="number" id="w-cx-max" value="${w.complexity.maxScore}"></div>
+  `;
+  document.getElementById('industry-weights-table').innerHTML = `
+    <tr><th>Industry</th><th>Fit score</th></tr>
+    ${INDUSTRIES.map(ind=>`<tr><td>${ind.name}</td><td><input type="number" class="w-industry" data-industry="${ind.name}" value="${w.industryTiers[ind.name] ?? ind.tier}"></td></tr>`).join('')}
+  `;
+
+  ['CFO','Head of Sales'].forEach(persona=>{
+    const tableId = persona==='CFO' ? 'template-table-cfo' : 'template-table-sales';
+    const rows = templatesFor(persona);
+    document.getElementById(tableId).innerHTML = `
+      <tr><th>Day</th><th>Channel</th><th>Subject</th></tr>
+      ${rows.map(t=>`
+        <tr data-template-id="${t.id}">
+          <td><input type="number" class="tpl-day" value="${t.day}"></td>
+          <td><input type="text" class="tpl-channel" value="${t.channel}"></td>
+          <td><input type="text" class="tpl-subject" value="${t.subject.replace(/"/g,'&quot;')}"></td>
+        </tr>`).join('')}
+    `;
+  });
+}
+
+async function saveIcpWeights(){
+  const newWeights = {
+    qualifyThreshold: Number(document.getElementById('w-threshold').value),
+    revenue: {
+      minCr: Number(document.getElementById('w-rev-min-cr').value),
+      maxCr: Number(document.getElementById('w-rev-max-cr').value),
+      minScore: Number(document.getElementById('w-rev-min-score').value),
+      maxScore: Number(document.getElementById('w-rev-max-score').value),
+    },
+    complexity: {
+      perStateScore: Number(document.getElementById('w-cx-per-state').value),
+      maxScore: Number(document.getElementById('w-cx-max').value),
+    },
+    industryTiers: Object.fromEntries(Array.from(document.querySelectorAll('.w-industry')).map(el=>[el.dataset.industry, Number(el.value)])),
+  };
+  const status = document.getElementById('weights-save-status');
+  status.textContent = 'Saving…';
+  const {error: we} = await sb.from('icp_weights').update({value:newWeights, updated_at:new Date().toISOString()}).eq('key','default');
+  if (we){ showBanner('Failed to save weights: '+we.message, true); status.textContent=''; return; }
+  DATA.icpWeights = newWeights;
+
+  status.textContent = 'Re-scoring accounts…';
+  for (const batch of chunk(DATA.companies, 100)){
+    const updates = batch.map(c=>{
+      const s = computeScores(c.revenueCr, c.industry, c.gstStates, newWeights);
+      return sb.from('companies').update({
+        revenue_score:s.revenueScore, industry_score:s.industryScore, complexity_score:s.complexityScore,
+        icp_score:s.icpScore, status:s.status,
+      }).eq('id', c.id);
+    });
+    await Promise.all(updates);
+  }
+  await loadAllData();
+  renderAll();
+  renderSettings();
+  status.textContent = `Saved — ${DATA.companies.length} accounts re-scored.`;
+  setTimeout(()=>{ status.textContent=''; }, 4000);
+}
+
+async function saveSequenceTemplates(){
+  const status = document.getElementById('templates-save-status');
+  status.textContent = 'Saving…';
+  const rows = Array.from(document.querySelectorAll('#template-table-cfo tr[data-template-id], #template-table-sales tr[data-template-id]'));
+  const updates = rows.map(tr=>{
+    const id = tr.dataset.templateId;
+    const day = Number(tr.querySelector('.tpl-day').value);
+    const channel = tr.querySelector('.tpl-channel').value;
+    const subject = tr.querySelector('.tpl-subject').value;
+    return sb.from('sequence_templates').update({day, channel, subject}).eq('id', id);
+  });
+  const results = await Promise.all(updates);
+  const failed = results.find(r=>r.error);
+  if (failed){ showBanner('Failed to save templates: '+failed.error.message, true); status.textContent=''; return; }
+  await loadAllData();
+  renderAll();
+  renderSettings();
+  status.textContent = 'Saved.';
+  setTimeout(()=>{ status.textContent=''; }, 4000);
+}
+
+const ACTIVITY_CACHE = {};
+async function fetchActivity(entityId){
+  const {data, error} = await sb.from('activity_log').select('*').eq('entity_id', entityId).order('created_at', {ascending:false}).limit(20);
+  if (error) return [];
+  return data;
+}
+
+async function openContactDrawer(contactId){
+  openDrawerContactId = contactId;
+  const c = deriveContactDisplay(findContact(contactId));
+  const company = findCompany(c.companyId);
+  const drawer = document.getElementById('drawer');
+  const stageOptions = ['Outbound','Replied','Meeting Booked','Meeting Held','Proposal','Closed Won','Closed Lost','Unqualified'];
+  drawer.innerHTML = `
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+    <div class="badge ${c.persona==='CFO'?'cfo':'sales'}">${c.persona}</div>
+    <h2>${c.name}</h2>
+    <div class="co">${c.title||''} · ${company.name}</div>
+
+    <div class="field-row"><span>Industry</span><span>${company.industry||''}</span></div>
+    <div class="field-row"><span>State</span><span>${company.state||''}</span></div>
+    <div class="field-row"><span>ICP score</span><span class="score-pill ${scoreClass(company.icpScore)}">${company.icpScore}</span></div>
+    <div class="field-row"><span>Deal stage</span>
+      <select onchange="setDealStage('${c.id}', this.value)">
+        ${stageOptions.map(s=>`<option value="${s}" ${s===c.dealStage?'selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    ${c.isOverdue ? '<div class="field-row"><span>Next touch</span><span class="badge overdue">Overdue</span></div>' : c.isDueToday ? '<div class="field-row"><span>Next touch</span><span class="badge due-today">Due today</span></div>' : ''}
+
+    <div class="timeline">
+      <strong style="font-size:12.5px;">Touch history</strong>
+      ${c.touches.length===0 ? '<div style="color:var(--muted);font-size:12px;padding:8px 0;">No touches logged yet.</div>' :
+        c.touches.map(t=>`<div class="tstep"><div class="tdate">${fmtDate(new Date(t.date))}</div><div><strong>${t.channel}</strong> — ${t.subject}</div></div>`).join('')}
+      ${c.replied ? `<div class="tstep"><div class="tdate">${fmtDate(new Date(c.replyDate))}</div><div><strong>Reply received</strong></div></div>` : ''}
+      ${c.meeting ? `<div class="tstep"><div class="tdate">${fmtDate(new Date(c.meetingDate))}</div><div><strong>Meeting booked</strong></div></div>` : ''}
+    </div>
+
+    <div class="actions">
+      <button class="primary" ${c.touchCount>=4||c.dealStage!=='Outbound'?'disabled':''} onclick="logNextTouch('${c.id}')">Log next touch</button>
+      <button ${c.replied?'disabled':''} onclick="logReply('${c.id}')">Mark replied</button>
+      <button ${c.meeting?'disabled':''} onclick="logMeeting('${c.id}')">Book meeting</button>
+      <button ${c.unqualified?'disabled':''} onclick="markUnqualified('${c.id}')">Mark unqualified</button>
+    </div>
+
+    <div style="margin-top:18px;">
+      <button class="reset-btn" id="suggest-btn" style="width:100%;" onclick="suggestNextStep('${c.id}')">✨ Suggest next step (AI)</button>
+      <div id="suggestion-box" style="margin-top:8px;font-size:12.5px;"></div>
+    </div>
+
+    <div style="margin-top:18px;">
+      <strong style="font-size:12.5px;">Notes</strong>
+      <textarea class="notes-input" id="notes-textarea" placeholder="Context for the next person who opens this contact…" oninput="queueSaveNotes('${c.id}', this.value)">${c.notes||''}</textarea>
+      <div class="notes-save" id="notes-save-indicator">&nbsp;</div>
+    </div>
+
+    <div class="activity-feed">
+      <strong style="font-size:12.5px;">Activity</strong>
+      <div id="activity-feed-list" style="margin-top:8px;color:var(--muted);font-size:11.5px;">Loading…</div>
+    </div>
+  `;
+  document.getElementById('overlay').classList.add('active');
+
+  const activity = await fetchActivity(contactId);
+  const feedEl = document.getElementById('activity-feed-list');
+  if (feedEl){
+    feedEl.innerHTML = activity.length===0 ? 'No activity yet.' : activity.map(a=>{
+      const rep = DATA.reps.find(r=>r.id===a.rep_id);
+      return `<div class="activity-item">
+        <div class="adate">${fmtDate(new Date(a.created_at))}</div>
+        <div><span class="arep">${rep?rep.name:'Someone'}</span> — ${a.action}${a.detail?': '+a.detail:''}</div>
+      </div>`;
+    }).join('');
+  }
+}
+function closeDrawer(){ document.getElementById('overlay').classList.remove('active'); openDrawerContactId=null; }
+document.getElementById('overlay').addEventListener('click', e=>{ if (e.target.id==='overlay') closeDrawer(); });
+
+function renderAll(){
+  updateRepBadge();
+  document.getElementById('seed-btn').textContent = DATA.companies.length===0 ? 'Load starter accounts' : 'Add more starter accounts';
+  renderDashboard();
+  renderAccounts();
+  renderContacts();
+  renderSequences();
+}
+
+/* =========================================================================
+   REALTIME — every rep's edits sync to everyone else within ~1s.
+   ========================================================================= */
+let refreshTimer = null;
+function scheduleRefresh(){
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(async ()=>{
+    await loadAllData();
+    renderAll();
+    if (openDrawerContactId && findContact(openDrawerContactId)) openContactDrawer(openDrawerContactId);
+  }, 700);
+}
+function setupRealtime(){
+  sb.channel('crm-changes')
+    .on('postgres_changes', {event:'*', schema:'public', table:'companies'}, scheduleRefresh)
+    .on('postgres_changes', {event:'*', schema:'public', table:'contacts'}, scheduleRefresh)
+    .on('postgres_changes', {event:'*', schema:'public', table:'touches'}, scheduleRefresh)
+    .on('postgres_changes', {event:'*', schema:'public', table:'reps'}, scheduleRefresh)
+    .subscribe();
+}
+
+/* =========================================================================
+   WIRING
+   ========================================================================= */
+document.querySelectorAll('nav button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+['acct-search','acct-status-filter','acct-industry-filter'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', renderAccounts);
+});
+['contact-search','contact-persona-filter','contact-status-filter'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', renderContacts);
+});
+document.getElementById('my-accounts-toggle').addEventListener('change', renderAll);
+document.querySelectorAll('#acct-table th[data-sort]').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const key = th.dataset.sort;
+    acctSort.dir = (acctSort.key===key) ? -acctSort.dir : -1;
+    acctSort.key = key;
+    renderAccounts();
+  });
+});
+document.querySelectorAll('#contact-table th[data-sort]').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const key = th.dataset.sort;
+    contactSort.dir = (contactSort.key===key) ? -contactSort.dir : -1;
+    contactSort.key = key;
+    renderContacts();
+  });
+});
+
+(async function init(){
+  try{
+    await loadAllData();
+    ensureRep();
+    renderAll();
+    renderSettings();
+    setupRealtime();
+  } catch(e){
+    console.error(e);
+  }
+})();
+</script>
+</body>
+</html>
