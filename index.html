@@ -889,14 +889,18 @@ async function groqNormalizeIndustries(rawValues){
   const known = INDUSTRIES.map(i=>i.name);
   const uniqueRaw = Array.from(new Set(rawValues.filter(Boolean)));
   if (uniqueRaw.length===0) return {};
+  // batch to max 30 values to avoid token limits
+  const batch = uniqueRaw.slice(0, 30);
   const prompt = `Map each raw industry/sector label to the single closest matching category from this fixed list:
 ${JSON.stringify(known)}
 
-Raw labels to map: ${JSON.stringify(uniqueRaw)}
+Raw labels to map: ${JSON.stringify(batch)}
 
 Return ONLY a JSON object where each key is one of the raw labels (verbatim, exact match) and the value is the matched category from the list above.`;
-  const content = await groqChat([{role:'user', content:prompt}], {json:true, maxTokens:2000});
-  try { return JSON.parse(content); } catch(e){ return {}; }
+  try {
+    const content = await groqChat([{role:'user', content:prompt}], {json:true, maxTokens:2000});
+    return JSON.parse(content);
+  } catch(e){ return {}; }
 }
 
 function renderImportMappingStep(mapping){
