@@ -895,7 +895,7 @@ ${JSON.stringify(known)}
 Raw labels to map: ${JSON.stringify(uniqueRaw)}
 
 Return ONLY a JSON object where each key is one of the raw labels (verbatim, exact match) and the value is the matched category from the list above.`;
-  const content = await groqChat([{role:'user', content:prompt}], {json:true, maxTokens:800});
+  const content = await groqChat([{role:'user', content:prompt}], {json:true, maxTokens:2000});
   try { return JSON.parse(content); } catch(e){ return {}; }
 }
 
