@@ -1567,8 +1567,10 @@ function scheduleRefresh(){
     if (openDrawerContactId && findContact(openDrawerContactId)) openContactDrawer(openDrawerContactId);
   }, 700);
 }
+let _realtimeChannel = null;
 function setupRealtime(){
-  sb.channel('crm-changes')
+  if (_realtimeChannel) return;
+  _realtimeChannel = sb.channel('crm-changes')
     .on('postgres_changes', {event:'*', schema:'public', table:'companies'}, scheduleRefresh)
     .on('postgres_changes', {event:'*', schema:'public', table:'contacts'}, scheduleRefresh)
     .on('postgres_changes', {event:'*', schema:'public', table:'touches'}, scheduleRefresh)
