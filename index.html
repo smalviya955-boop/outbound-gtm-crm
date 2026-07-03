@@ -609,9 +609,22 @@ function chunk(arr, size){ const out=[]; for(let i=0;i<arr.length;i+=size) out.p
    DATA LAYER — Supabase is the shared source of truth. DATA is an
    in-memory cache rebuilt on load and refreshed on realtime change events.
    ========================================================================= */
-let DATA = { reps: [], companies: [], contacts: [], icpWeights: null, sequenceTemplates: [] };
+function emptyData(){
+  return { reps: [], companies: [], contacts: [], icpWeights: null, sequenceTemplates: [] };
+}
+let DATA = emptyData();
 let CURRENT_REP = null;
 let openDrawerContactId = null;
+
+function resetAppState(){
+  DATA = emptyData();
+  CURRENT_REP = null;
+  openDrawerContactId = null;
+  closeDrawer();
+  teardownRealtime();
+  renderAll();
+  renderSettings();
+}
 
 function fillTemplate(str, company){
   return str.replace('{{company}}', company.name).replace('{{industry}}', company.industry);
@@ -889,18 +902,14 @@ async function groqNormalizeIndustries(rawValues){
   const known = INDUSTRIES.map(i=>i.name);
   const uniqueRaw = Array.from(new Set(rawValues.filter(Boolean)));
   if (uniqueRaw.length===0) return {};
-  // batch to max 30 values to avoid token limits
-  const batch = uniqueRaw.slice(0, 30);
   const prompt = `Map each raw industry/sector label to the single closest matching category from this fixed list:
 ${JSON.stringify(known)}
 
-Raw labels to map: ${JSON.stringify(batch)}
+Raw labels to map: ${JSON.stringify(uniqueRaw)}
 
 Return ONLY a JSON object where each key is one of the raw labels (verbatim, exact match) and the value is the matched category from the list above.`;
-  try {
-    const content = await groqChat([{role:'user', content:prompt}], {json:true, maxTokens:2000});
-    return JSON.parse(content);
-  } catch(e){ return {}; }
+  const content = await groqChat([{role:'user', content:prompt}], {json:true, maxTokens:2000});
+  try { return JSON.parse(content); } catch(e){ return {}; }
 }
 
 function renderImportMappingStep(mapping){
@@ -1044,13 +1053,19 @@ async function sendMagicLink(){
   statusEl.innerHTML = `<strong>Check your email</strong> — click the link sent to ${email}. This tab picks it up automatically once you do.`;
 }
 function showNotAllowedScreen(email){
+  CURRENT_REP = null;
+  updateRepBadge();
   showModalBox(`
     <h3>Not on the team list</h3>
     <div class="mdesc">Signed in as <strong>${email}</strong>, but this email hasn't been added as a rep yet. Ask a teammate to add you from Settings → Invite teammate, then sign in again.</div>
     <div class="add-row"><button onclick="signOut()" style="background:var(--bg);color:var(--text);border:1px solid var(--border);">Sign out</button></div>
   `);
 }
-async function signOut(){ await sb.auth.signOut(); }
+async function signOut(){
+  resetAppState();
+  await sb.auth.signOut();
+  showSignInGate();
+}
 function updateRepBadge(){
   const btn = document.getElementById('rep-badge');
   btn.textContent = CURRENT_REP ? CURRENT_REP.name : 'Signed out';
@@ -1075,7 +1090,7 @@ async function onAuthenticated(session){
   await loadAllData();
   const email = (session.user.email || '').toLowerCase();
   const rep = DATA.reps.find(r=>(r.email||'').toLowerCase()===email);
-  if (!rep){ showNotAllowedScreen(session.user.email); CURRENT_REP = null; return; }
+  if (!rep){ showNotAllowedScreen(session.user.email); return; }
   CURRENT_REP = rep;
   updateRepBadge();
   renderAll();
@@ -1085,7 +1100,7 @@ async function onAuthenticated(session){
 function setupAuthListener(){
   sb.auth.onAuthStateChange(async (event, session)=>{
     if (event==='SIGNED_IN' && session){ await onAuthenticated(session); }
-    else if (event==='SIGNED_OUT'){ CURRENT_REP = null; updateRepBadge(); showSignInGate(); }
+    else if (event==='SIGNED_OUT'){ resetAppState(); showSignInGate(); }
   });
 }
 
@@ -1572,6 +1587,11 @@ function scheduleRefresh(){
   }, 700);
 }
 let _realtimeChannel = null;
+function teardownRealtime(){
+  if (!_realtimeChannel) return;
+  sb.removeChannel(_realtimeChannel);
+  _realtimeChannel = null;
+}
 function setupRealtime(){
   if (_realtimeChannel) return;
   _realtimeChannel = sb.channel('crm-changes')
